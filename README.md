@@ -262,4 +262,4 @@ MIT License - Feel free to use in your projects.
 
 ## Author
 
-Created with Qt Widgets and SOLID principles.
+Cristian Tesconi (cristiantesco@gmail.com / geeky.tech.gt@gmail.com)
