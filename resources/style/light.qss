@@ -1,0 +1,82 @@
+/*
+ * Modern Light Theme Stylesheet for Qt Splash Screen
+ * ===================================================
+ * Clean, modern design with glassmorphism-inspired elements
+ */
+
+/* ============================================
+   APPLICATION NAME
+   ============================================ */
+#splashAppName {
+    font-family: "Segoe UI Semibold", "SF Pro Display", "Arial", sans-serif;
+    font-size: 26px;
+    font-weight: 600;
+    color: #1a1a2e;
+    background: transparent;
+    padding: 8px 0px;
+    letter-spacing: 0.5px;
+}
+
+/* ============================================
+   APPLICATION VERSION
+   ============================================ */
+#splashAppVersion {
+    font-family: "Segoe UI", "SF Pro Text", "Arial", sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    color: #64748b;
+    background: transparent;
+    padding: 0px;
+    letter-spacing: 0.3px;
+}
+
+/* ============================================
+   MODERN PROGRESS BAR
+   ============================================ */
+#splashProgressBar {
+    background-color: rgba(0, 0, 0, 0.08);
+    border: none;
+    border-radius: 6px;
+    min-height: 12px;
+    max-height: 12px;
+}
+
+#splashProgressBar::chunk {
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0.0 #6366f1,
+        stop: 0.3 #8b5cf6,
+        stop: 0.6 #a855f7,
+        stop: 1.0 #6366f1
+    );
+    border-radius: 6px;
+}
+
+/* ============================================
+   STATUS MESSAGE LABEL
+   ============================================ */
+#splashStatusLabel {
+    font-family: "Segoe UI", "SF Pro Text", "Arial", sans-serif;
+    font-size: 12px;
+    font-weight: 400;
+    color: #475569;
+    background: transparent;
+    padding: 4px 0px;
+    letter-spacing: 0.2px;
+}
+
+/* ============================================
+   CONTAINERS (transparent)
+   ============================================ */
+#logoContainer, #progressContainer {
+    background: transparent;
+    border: none;
+}
+
+/* ============================================
+   LOGO WIDGET
+   ============================================ */
+#splashLogo {
+    background: transparent;
+    border: none;
+}

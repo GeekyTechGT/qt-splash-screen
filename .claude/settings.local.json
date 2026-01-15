@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmd //c:*)",
+      "Bash(cmd.exe //C \"D:\\\\GeekyTechRepos\\\\qt-splash-screen\\\\build.bat norun\")",
+      "Bash(ninja:*)",
+      "Bash(\"C:/eng_apps/Qt/Tools/Ninja/ninja.exe\" -j8)"
+    ]
+  }
+}
