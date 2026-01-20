@@ -117,6 +117,7 @@ copy /y "%QT_PATH%\bin\Qt6Gui.dll" "%BIN_DIR%\" >nul 2>&1
 copy /y "%QT_PATH%\bin\Qt6Widgets.dll" "%BIN_DIR%\" >nul 2>&1
 copy /y "%QT_PATH%\bin\Qt6Svg.dll" "%BIN_DIR%\" >nul 2>&1
 copy /y "%QT_PATH%\bin\Qt6SvgWidgets.dll" "%BIN_DIR%\" >nul 2>&1
+copy /y "%QT_PATH%\bin\Qt6Concurrent.dll" "%BIN_DIR%\" >nul 2>&1
 
 REM Copy MinGW runtime
 echo [INFO] Copying MinGW runtime libraries...

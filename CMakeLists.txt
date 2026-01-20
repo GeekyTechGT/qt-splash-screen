@@ -16,12 +16,13 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # Find Qt6 packages
-find_package(Qt6 REQUIRED COMPONENTS 
-    Core 
-    Gui 
-    Widgets 
-    Svg 
+find_package(Qt6 REQUIRED COMPONENTS
+    Core
+    Gui
+    Widgets
+    Svg
     SvgWidgets
+    Concurrent
 )
 
 # Source files
@@ -50,6 +51,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Widgets
     Qt6::Svg
     Qt6::SvgWidgets
+    Qt6::Concurrent
 )
 
 # Include directories

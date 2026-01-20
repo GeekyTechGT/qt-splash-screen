@@ -4,73 +4,9 @@
 #include <QApplication>
 #include <QThread>
 #include <QRandomGenerator>
-
-// ============================================================================
-// InitializationWorker Implementation
-// ============================================================================
-
-InitializationWorker::InitializationWorker(QObject *parent)
-    : QObject(parent)
-    , m_cancelled(false)
-{
-}
-
-void InitializationWorker::setTaskDurations(const QVector<int> &durations)
-{
-    m_taskDurations = durations;
-}
-
-void InitializationWorker::runInitialization()
-{
-    m_cancelled = false;
-
-    // Task names that will be displayed in the splash screen
-    QStringList taskNames = {
-        "Loading configuration files",
-        "Initializing database connection",
-        "Loading user preferences",
-        "Preparing UI components",
-        "Loading plugins",
-        "Verifying license",
-        "Connecting to services"
-    };
-
-    for (int i = 0; i < m_taskDurations.size() && !m_cancelled; ++i) {
-        QString taskName = (i < taskNames.size()) ? taskNames[i] : QString("Task %1").arg(i + 1);
-        simulateTask(i, taskName, m_taskDurations[i]);
-    }
-
-    if (!m_cancelled) {
-        emit allTasksCompleted();
-    }
-}
-
-void InitializationWorker::cancelInitialization()
-{
-    m_cancelled = true;
-}
-
-void InitializationWorker::simulateTask(int taskIndex, const QString &taskName, int durationMs)
-{
-    emit taskStarted(taskIndex, taskName);
-
-    // Simulate intensive work with random variations
-    int actualDuration = durationMs + QRandomGenerator::global()->bounded(-100, 100);
-    actualDuration = qMax(100, actualDuration);
-
-    // Simulate work in chunks to allow cancellation
-    const int chunkSize = 50;
-    int elapsed = 0;
-    while (elapsed < actualDuration && !m_cancelled) {
-        QThread::msleep(chunkSize);
-        elapsed += chunkSize;
-    }
-
-    if (!m_cancelled) {
-        emit taskCompleted(taskIndex);
-    }
-}
-
+#include <QtConcurrent>
+#include <QTimer>
+#include <QHeaderView>
 
 // ============================================================================
 // MainWindow Implementation
@@ -82,9 +18,11 @@ MainWindow::MainWindow(QWidget *parent)
     , m_mainLayout(nullptr)
     , m_titleLabel(nullptr)
     , m_logTextEdit(nullptr)
+    , m_dataTable(nullptr)
     , m_statusLabel(nullptr)
+    , m_currentTaskIndex(0)
+    , m_cancelled(false)
     , m_workerThread(nullptr)
-    , m_worker(nullptr)
 {
     setupInitializationTasks();
     setupUi();
@@ -92,10 +30,8 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    m_cancelled = true;
     if (m_workerThread) {
-        if (m_worker) {
-            m_worker->cancelInitialization();
-        }
         m_workerThread->quit();
         m_workerThread->wait(3000);
         delete m_workerThread;
@@ -127,6 +63,7 @@ void MainWindow::setupUi()
 
     m_logTextEdit = new QTextEdit(this);
     m_logTextEdit->setReadOnly(true);
+    m_logTextEdit->setMaximumHeight(150);
     m_logTextEdit->setStyleSheet(
         "QTextEdit {"
         "  background-color: #1e1e1e;"
@@ -140,6 +77,34 @@ void MainWindow::setupUi()
     );
     m_mainLayout->addWidget(m_logTextEdit);
 
+    // Data table (populated during initialization with 10k rows)
+    QLabel *tableLabel = new QLabel("Data Table (10,000 rows loaded during init):", this);
+    tableLabel->setStyleSheet("font-size: 14px; font-weight: bold; color: #34495e;");
+    m_mainLayout->addWidget(tableLabel);
+
+    m_dataTable = new QTableWidget(this);
+    m_dataTable->setColumnCount(5);
+    m_dataTable->setHorizontalHeaderLabels({"ID", "Name", "Value", "Status", "Timestamp"});
+    m_dataTable->horizontalHeader()->setStretchLastSection(true);
+    m_dataTable->setAlternatingRowColors(true);
+    m_dataTable->setStyleSheet(
+        "QTableWidget {"
+        "  background-color: #ffffff;"
+        "  alternate-background-color: #f5f5f5;"
+        "  border: 1px solid #3498db;"
+        "  border-radius: 5px;"
+        "  gridline-color: #ddd;"
+        "}"
+        "QHeaderView::section {"
+        "  background-color: #3498db;"
+        "  color: white;"
+        "  padding: 8px;"
+        "  font-weight: bold;"
+        "  border: none;"
+        "}"
+    );
+    m_mainLayout->addWidget(m_dataTable, 1);  // stretch factor 1
+
     // Status bar
     m_statusLabel = new QLabel("Ready", this);
     m_statusLabel->setStyleSheet(
@@ -151,48 +116,106 @@ void MainWindow::setupUi()
 
 void MainWindow::setupInitializationTasks()
 {
-    // Define initialization tasks with varying durations to simulate real scenarios
+    // Define initialization tasks with their methods
+    // isHeavyTask = true means the task will run on a worker thread
     m_initTasks = {
-        {"config",     "Loading configuration files",      800},
-        {"database",   "Initializing database connection", 1200},
-        {"preferences","Loading user preferences",         600},
-        {"ui",         "Preparing UI components",          900},
-        {"plugins",    "Loading plugins",                  1500},
-        {"license",    "Verifying license",                400},
-        {"services",   "Connecting to services",           700}
+        {"config",      "Loading configuration files",
+            [this]() { taskLoadConfiguration(); }, false},
+
+        {"database",    "Initializing database connection",
+            [this]() { taskInitializeDatabase(); }, true},
+
+        {"preferences", "Loading user preferences",
+            [this]() { taskLoadUserPreferences(); }, false},
+
+        {"ui",          "Preparing UI components",
+            [this]() { taskPrepareUIComponents(); }, true},
+
+        {"plugins",     "Loading plugins",
+            [this]() { taskLoadPlugins(); }, true},
+
+        {"license",     "Verifying license",
+            [this]() { taskVerifyLicense(); }, false},
+
+        {"services",    "Connecting to services",
+            [this]() { taskConnectToServices(); }, true},
+
+        {"datatable",   "Populating data table (10,000 rows)",
+            [this]() { taskPopulateDataTable(); }, true}
     };
 }
 
-void MainWindow::startInitialization()
+void MainWindow::initialize()
 {
-    // Create worker and thread
-    m_workerThread = new QThread(this);
-    m_worker = new InitializationWorker();
-    m_worker->moveToThread(m_workerThread);
+    m_currentTaskIndex = 0;
+    m_cancelled = false;
 
-    // Prepare task durations
-    QVector<int> durations;
-    for (const auto &task : m_initTasks) {
-        durations.append(task.durationMs);
+    logMessage("Starting initialization...");
+
+    // Start the first task
+    runNextTask();
+}
+
+void MainWindow::runNextTask()
+{
+    if (m_cancelled) {
+        return;
     }
-    m_worker->setTaskDurations(durations);
 
-    // Connect signals
-    connect(m_workerThread, &QThread::started, m_worker, &InitializationWorker::runInitialization);
-    connect(m_worker, &InitializationWorker::taskStarted, this, &MainWindow::onTaskStarted);
-    connect(m_worker, &InitializationWorker::taskCompleted, this, &MainWindow::onTaskCompleted);
-    connect(m_worker, &InitializationWorker::allTasksCompleted, this, &MainWindow::onAllTasksCompleted);
-    connect(m_worker, &InitializationWorker::initializationError, this, &MainWindow::onInitializationError);
+    if (m_currentTaskIndex >= m_initTasks.size()) {
+        // All tasks completed
+        logMessage("========================================");
+        logMessage("All initialization tasks completed!");
+        logMessage("========================================");
 
-    // Cleanup connections
-    connect(m_workerThread, &QThread::finished, m_worker, &QObject::deleteLater);
+        m_statusLabel->setText("All systems operational");
+        m_statusLabel->setStyleSheet(
+            "font-size: 12px; color: #ffffff; padding: 5px; "
+            "background-color: #27ae60; border-radius: 3px; font-weight: bold;"
+        );
 
-    // Log start
-    QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
-    m_logTextEdit->append(QString("[%1] Starting initialization...").arg(timestamp));
+        emit initializationComplete();
+        return;
+    }
 
-    // Start the worker thread
-    m_workerThread->start();
+    const InitTask &task = m_initTasks[m_currentTaskIndex];
+
+    // Emit signal for splash screen (1-based step)
+    emit initializationStepStarted(m_currentTaskIndex + 1, task.description);
+    logTaskStart(task.description);
+
+    if (task.isHeavyTask) {
+        // Run heavy task in a separate thread using QtConcurrent
+        QFuture<void> future = QtConcurrent::run([this, task]() {
+            task.taskMethod();
+
+            // When done, notify main thread using QMetaObject::invokeMethod
+            QMetaObject::invokeMethod(this, "onTaskCompleted", Qt::QueuedConnection);
+        });
+    } else {
+        // Run quick task on main thread but use a timer to not block UI
+        QTimer::singleShot(0, this, [this, task]() {
+            task.taskMethod();
+            onTaskCompleted();
+        });
+    }
+}
+
+void MainWindow::onTaskCompleted()
+{
+    if (m_cancelled) {
+        return;
+    }
+
+    // Log completion on the main thread
+    QMetaObject::invokeMethod(this, [this]() {
+        logTaskComplete();
+        emit initializationStepCompleted(m_currentTaskIndex + 1);
+
+        // Move to next task
+        m_currentTaskIndex++;
+        runNextTask();
+    }, Qt::QueuedConnection);
 }
 
 QStringList MainWindow::getInitializationTasks() const
@@ -209,48 +232,269 @@ int MainWindow::getInitializationStepCount() const
     return m_initTasks.size();
 }
 
-void MainWindow::onTaskStarted(int taskIndex, const QString &taskName)
+void MainWindow::logMessage(const QString &message)
 {
-    // Emit signal for splash screen (1-based step)
-    emit initializationStepStarted(taskIndex + 1, taskName);
+    // Ensure we're on the main thread for UI updates
+    if (QThread::currentThread() != QApplication::instance()->thread()) {
+        QMetaObject::invokeMethod(this, [this, message]() {
+            logMessage(message);
+        }, Qt::QueuedConnection);
+        return;
+    }
 
-    // Log in the main window
+    QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
+    m_logTextEdit->append(QString("[%1] %2").arg(timestamp, message));
+}
+
+void MainWindow::logTaskStart(const QString &taskName)
+{
+    if (QThread::currentThread() != QApplication::instance()->thread()) {
+        QMetaObject::invokeMethod(this, [this, taskName]() {
+            logTaskStart(taskName);
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
     m_logTextEdit->append(QString("[%1] >> %2...").arg(timestamp, taskName));
 }
 
-void MainWindow::onTaskCompleted(int /* taskIndex */)
+void MainWindow::logTaskComplete()
 {
+    if (QThread::currentThread() != QApplication::instance()->thread()) {
+        QMetaObject::invokeMethod(this, [this]() {
+            logTaskComplete();
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
     m_logTextEdit->append(QString("[%1]    [OK]").arg(timestamp));
 }
 
-void MainWindow::onAllTasksCompleted()
+// ============================================================================
+// INITIALIZATION TASK IMPLEMENTATIONS
+// ============================================================================
+
+void MainWindow::taskLoadConfiguration()
 {
-    QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
-    m_logTextEdit->append(QString("[%1] ========================================").arg(timestamp));
-    m_logTextEdit->append(QString("[%1] All initialization tasks completed!").arg(timestamp));
-    m_logTextEdit->append(QString("[%1] ========================================").arg(timestamp));
+    // Simulates loading configuration files (quick task)
+    // In a real app: read JSON/XML config files, parse settings, etc.
 
-    m_statusLabel->setText("All systems operational");
-    m_statusLabel->setStyleSheet(
-        "font-size: 12px; color: #ffffff; padding: 5px; "
-        "background-color: #27ae60; border-radius: 3px; font-weight: bold;"
-    );
+    int duration = 300 + QRandomGenerator::global()->bounded(200);
+    QThread::msleep(duration);
 
-    emit initializationComplete();
+    // Example: simulate reading some config values
+    // QSettings settings("app.ini", QSettings::IniFormat);
+    // m_config = settings.value("key").toString();
 }
 
-void MainWindow::onInitializationError(const QString &error)
+void MainWindow::taskInitializeDatabase()
 {
-    QString timestamp = QDateTime::currentDateTime().toString("hh:mm:ss.zzz");
-    m_logTextEdit->append(QString("[%1] ERROR: %2").arg(timestamp, error));
+    // Simulates database connection (heavy task - runs in worker thread)
+    // In a real app: open SQLite/PostgreSQL connection, run migrations, etc.
 
-    m_statusLabel->setText("Initialization failed: " + error);
-    m_statusLabel->setStyleSheet(
-        "font-size: 12px; color: #ffffff; padding: 5px; "
-        "background-color: #e74c3c; border-radius: 3px; font-weight: bold;"
-    );
+    int duration = 800 + QRandomGenerator::global()->bounded(400);
 
-    emit initializationFailed(error);
+    // Simulate work in chunks to allow cancellation
+    const int chunkSize = 50;
+    int elapsed = 0;
+    while (elapsed < duration && !m_cancelled) {
+        QThread::msleep(chunkSize);
+        elapsed += chunkSize;
+    }
+
+    // Example:
+    // QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
+    // db.setDatabaseName("app.db");
+    // db.open();
+}
+
+void MainWindow::taskLoadUserPreferences()
+{
+    // Simulates loading user preferences (quick task)
+    // In a real app: read user settings, theme preferences, etc.
+
+    int duration = 200 + QRandomGenerator::global()->bounded(150);
+    QThread::msleep(duration);
+
+    // Example:
+    // QSettings settings;
+    // m_theme = settings.value("theme", "light").toString();
+}
+
+void MainWindow::taskPrepareUIComponents()
+{
+    // Simulates preparing UI components with heavy computation (heavy task)
+    // In a real app: load large resources, prepare complex layouts,
+    // compute initial data for charts, etc.
+
+    int duration = 600 + QRandomGenerator::global()->bounded(300);
+
+    const int chunkSize = 50;
+    int elapsed = 0;
+    while (elapsed < duration && !m_cancelled) {
+        QThread::msleep(chunkSize);
+        elapsed += chunkSize;
+
+        // Example: compute some data that will be displayed
+        // for (int i = 0; i < 1000; i++) {
+        //     m_chartData.append(computeComplexValue(i));
+        // }
+    }
+
+    // If we need to update UI from here, use QMetaObject::invokeMethod:
+    // QMetaObject::invokeMethod(this, [this]() {
+    //     m_someWidget->setData(m_computedData);
+    // }, Qt::QueuedConnection);
+}
+
+void MainWindow::taskLoadPlugins()
+{
+    // Simulates loading plugins (heavy task)
+    // In a real app: scan plugin directories, load DLLs, initialize plugins
+
+    int duration = 1000 + QRandomGenerator::global()->bounded(500);
+
+    const int chunkSize = 50;
+    int elapsed = 0;
+    while (elapsed < duration && !m_cancelled) {
+        QThread::msleep(chunkSize);
+        elapsed += chunkSize;
+    }
+
+    // Example:
+    // QDir pluginsDir(QApplication::applicationDirPath() + "/plugins");
+    // for (const QString &fileName : pluginsDir.entryList(QDir::Files)) {
+    //     QPluginLoader loader(pluginsDir.absoluteFilePath(fileName));
+    //     loader.load();
+    // }
+}
+
+void MainWindow::taskVerifyLicense()
+{
+    // Simulates license verification (quick task)
+    // In a real app: check license file, validate with server, etc.
+
+    int duration = 150 + QRandomGenerator::global()->bounded(100);
+    QThread::msleep(duration);
+
+    // Example:
+    // LicenseManager::instance()->verify();
+}
+
+void MainWindow::taskConnectToServices()
+{
+    // Simulates connecting to external services (heavy task)
+    // In a real app: connect to REST APIs, WebSocket servers, etc.
+
+    int duration = 500 + QRandomGenerator::global()->bounded(200);
+
+    const int chunkSize = 50;
+    int elapsed = 0;
+    while (elapsed < duration && !m_cancelled) {
+        QThread::msleep(chunkSize);
+        elapsed += chunkSize;
+    }
+
+    // Example:
+    // m_apiClient->connect("https://api.example.com");
+    // m_webSocket->open(QUrl("wss://realtime.example.com"));
+}
+
+void MainWindow::taskPopulateDataTable()
+{
+    // Heavy task that populates a table with 10,000 rows
+    // This runs in a worker thread and updates the UI in batches
+    // using QMetaObject::invokeMethod to keep the UI responsive.
+
+    const int TOTAL_ROWS = 10000;
+    const int BATCH_SIZE = 500;  // Insert rows in batches of 500
+
+    QStringList statuses = {"Active", "Pending", "Completed", "Failed", "Processing"};
+
+    for (int i = 0; i < TOTAL_ROWS && !m_cancelled; i += BATCH_SIZE) {
+        // Generate a batch of rows in the worker thread
+        QVector<QStringList> batch;
+        batch.reserve(BATCH_SIZE);
+
+        int batchEnd = qMin(i + BATCH_SIZE, TOTAL_ROWS);
+        for (int row = i; row < batchEnd && !m_cancelled; ++row) {
+            // Simulate some CPU-intensive data generation
+            double value = qSin(row * 0.1) * 100 + QRandomGenerator::global()->bounded(50);
+            QString status = statuses[QRandomGenerator::global()->bounded(statuses.size())];
+            QString timestamp = QDateTime::currentDateTime()
+                .addSecs(-QRandomGenerator::global()->bounded(86400))
+                .toString("yyyy-MM-dd hh:mm:ss");
+
+            QStringList rowData;
+            rowData << QString::number(row + 1)
+                    << QString("Item_%1").arg(row + 1, 5, 10, QChar('0'))
+                    << QString::number(value, 'f', 2)
+                    << status
+                    << timestamp;
+
+            batch.append(rowData);
+        }
+
+        // Send the batch to the main thread for UI update
+        // Using QMetaObject::invokeMethod with Qt::BlockingQueuedConnection
+        // ensures we wait for the UI update before generating the next batch,
+        // preventing memory buildup and keeping UI responsive
+        QMetaObject::invokeMethod(this, [this, batch]() {
+            addTableRowsBatch(batch);
+        }, Qt::BlockingQueuedConnection);
+
+        // Small delay between batches to keep UI extra smooth
+        QThread::msleep(10);
+    }
+}
+
+void MainWindow::addTableRowsBatch(const QVector<QStringList> &rows)
+{
+    // This method runs on the main thread and updates the table
+    // It's called from taskPopulateDataTable via QMetaObject::invokeMethod
+
+    // Temporarily disable updates for faster insertion
+    m_dataTable->setUpdatesEnabled(false);
+
+    int startRow = m_dataTable->rowCount();
+    m_dataTable->setRowCount(startRow + rows.size());
+
+    for (int i = 0; i < rows.size(); ++i) {
+        const QStringList &rowData = rows[i];
+        int row = startRow + i;
+
+        for (int col = 0; col < rowData.size() && col < m_dataTable->columnCount(); ++col) {
+            QTableWidgetItem *item = new QTableWidgetItem(rowData[col]);
+
+            // Right-align numeric columns
+            if (col == 0 || col == 2) {
+                item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            } else {
+                item->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+            }
+
+            // Color-code status column
+            if (col == 3) {
+                if (rowData[col] == "Active") {
+                    item->setForeground(QColor("#27ae60"));
+                } else if (rowData[col] == "Failed") {
+                    item->setForeground(QColor("#e74c3c"));
+                } else if (rowData[col] == "Pending") {
+                    item->setForeground(QColor("#f39c12"));
+                } else if (rowData[col] == "Processing") {
+                    item->setForeground(QColor("#3498db"));
+                }
+            }
+
+            m_dataTable->setItem(row, col, item);
+        }
+    }
+
+    // Re-enable updates and refresh
+    m_dataTable->setUpdatesEnabled(true);
+
+    // Process events to keep UI responsive
+    QApplication::processEvents();
 }

@@ -9,48 +9,19 @@
 #include <QVBoxLayout>
 #include <QTextEdit>
 #include <QProgressBar>
+#include <QTableWidget>
+#include <QMutex>
+#include <functional>
 #include <atomic>
-
-/**
- * @brief Worker class that runs initialization tasks in a separate thread.
- *
- * This follows the Single Responsibility Principle by handling
- * only the execution of initialization tasks.
- */
-class InitializationWorker : public QObject
-{
-    Q_OBJECT
-
-public:
-    explicit InitializationWorker(QObject *parent = nullptr);
-
-    void setTaskDurations(const QVector<int> &durations);
-
-public slots:
-    void runInitialization();
-    void cancelInitialization();
-
-signals:
-    void taskStarted(int taskIndex, const QString &taskName);
-    void taskCompleted(int taskIndex);
-    void allTasksCompleted();
-    void initializationError(const QString &error);
-
-private:
-    void simulateTask(int taskIndex, const QString &taskName, int durationMs);
-
-    QVector<int> m_taskDurations;
-    std::atomic<bool> m_cancelled;
-};
-
 
 /**
  * @brief Example MainWindow demonstrating splash screen integration.
  *
  * This class shows how to:
- * - Perform intensive initialization in a background thread
+ * - Perform intensive initialization using internal task methods
  * - Communicate progress to the splash screen
- * - Handle thread-safe status updates
+ * - Handle thread-safe status updates using QMetaObject::invokeMethod
+ * - Support both quick tasks and CPU-intensive tasks without blocking UI
  */
 class MainWindow : public QMainWindow
 {
@@ -62,9 +33,10 @@ public:
 
     /**
      * @brief Start the initialization process.
-     * Call this after showing the splash screen.
+     * This method launches all initialization tasks (both quick and heavy)
+     * in sequence, emitting progress signals for each completed task.
      */
-    void startInitialization();
+    void initialize();
 
     /**
      * @brief Get the list of initialization task names.
@@ -85,6 +57,12 @@ signals:
     void initializationStepStarted(int step, const QString &message);
 
     /**
+     * @brief Emitted when an initialization step completes.
+     * @param step The completed step number (1-based)
+     */
+    void initializationStepCompleted(int step);
+
+    /**
      * @brief Emitted when all initialization is complete.
      */
     void initializationComplete();
@@ -95,33 +73,60 @@ signals:
     void initializationFailed(const QString &error);
 
 private slots:
-    void onTaskStarted(int taskIndex, const QString &taskName);
-    void onTaskCompleted(int taskIndex);
-    void onAllTasksCompleted();
-    void onInitializationError(const QString &error);
+    void onTaskCompleted();
 
 private:
     void setupUi();
     void setupInitializationTasks();
+    void runNextTask();
+    void logMessage(const QString &message);
+    void logTaskStart(const QString &taskName);
+    void logTaskComplete();
+
+    // ========================================================================
+    // INITIALIZATION TASK METHODS
+    // Each task method performs a specific initialization operation.
+    // Quick tasks run on the main thread.
+    // Heavy tasks run on a worker thread using QtConcurrent.
+    // ========================================================================
+
+    // Quick tasks (main thread)
+    void taskLoadConfiguration();
+    void taskLoadUserPreferences();
+    void taskVerifyLicense();
+
+    // Heavy/CPU-intensive tasks (worker thread)
+    void taskInitializeDatabase();
+    void taskPrepareUIComponents();
+    void taskLoadPlugins();
+    void taskConnectToServices();
+
+    // Heavy task with UI updates - populates table with 10k rows
+    void taskPopulateDataTable();
+    void addTableRowsBatch(const QVector<QStringList> &rows);
 
     // UI Components
     QWidget *m_centralWidget;
     QVBoxLayout *m_mainLayout;
     QLabel *m_titleLabel;
     QTextEdit *m_logTextEdit;
+    QTableWidget *m_dataTable;
     QLabel *m_statusLabel;
 
-    // Threading
-    QThread *m_workerThread;
-    InitializationWorker *m_worker;
-
-    // Task definitions
+    // Task management
     struct InitTask {
         QString name;
         QString description;
-        int durationMs;
+        std::function<void()> taskMethod;
+        bool isHeavyTask;  // true = run in worker thread
     };
     QVector<InitTask> m_initTasks;
+    int m_currentTaskIndex;
+    std::atomic<bool> m_cancelled;
+
+    // Threading
+    QThread *m_workerThread;
+    QMutex m_mutex;
 };
 
 #endif // MAINWINDOW_H

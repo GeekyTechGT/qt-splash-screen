@@ -59,9 +59,10 @@ int main(int argc, char *argv[])
     MainWindow mainWindow;
 
     // Configure splash for determinate progress based on MainWindow tasks
+    // The splash screen will know exactly how many tasks to expect
     int totalSteps = mainWindow.getInitializationStepCount();
     splash.setTotalSteps(totalSteps);
-    splash.setProgressMode(SplashScreenWidget::ProgressMode::Indeterminate);
+    splash.setProgressMode(SplashScreenWidget::ProgressMode::Determinate);
 
     // ==========================================================================
     // SIGNAL CONNECTIONS
@@ -102,8 +103,9 @@ int main(int argc, char *argv[])
     // Show splash and start initialization
     splash.startSplash();
 
-    // Start MainWindow initialization (runs in background thread)
-    mainWindow.startInitialization();
+    // Start MainWindow initialization
+    // Tasks run sequentially, with heavy tasks in background threads
+    mainWindow.initialize();
 
     return app.exec();
 }
