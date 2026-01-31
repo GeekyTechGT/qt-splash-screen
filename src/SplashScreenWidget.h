@@ -56,10 +56,16 @@ public:
     void setBackgroundColor(const QColor &color);
     void setWindowSize(const QSize &size);
     void setBorderRadius(int radius);
+    void setBorderColor(const QColor &color);
+    void setBorderWidth(int width);
+    void setBorderColorRgb(const QString &rgbHex);
     void setTotalSteps(int steps);
     void setProgressMode(ProgressMode mode);
     void setAppName(const QString &name);
     void setAppVersion(const QString &version);
+    void setCompanyName(const QString &name);
+    void setCompanyLogoPath(const QString &svgPath);
+    void setCompanyLogoSize(const QSize &size);
 
     // Progress control
     void setProgress(int step);
@@ -101,15 +107,19 @@ private:
     void startBouncingAnimation();
     void stopBouncingAnimation();
     void checkAndClose();
+    void updateCompanyLogoPixmap();
 
     // UI Components
     QVBoxLayout *m_mainLayout;
     QSvgWidget *m_logoWidget;
     QLabel *m_appNameLabel;
     QLabel *m_appVersionLabel;
+    QLabel *m_companyNameLabel;
+    QLabel *m_companyLogoLabel;
     QProgressBar *m_progressBar;
     QLabel *m_statusLabel;
     QWidget *m_progressContainer;
+    QWidget *m_companyContainer;
 
     // Animation
     QTimer *m_bounceTimer;
@@ -124,8 +134,12 @@ private:
     int m_currentStep;
     ProgressMode m_progressMode;
     QSize m_logoSize;
+    QSize m_companyLogoSize;
+    QString m_companyLogoPath;
     QSize m_windowSize;
     int m_borderRadius;
+    int m_borderWidth;
+    QColor m_borderColor;
     QColor m_backgroundColor;
 
     // State tracking

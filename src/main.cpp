@@ -37,9 +37,12 @@ int main(int argc, char *argv[])
     splash.setWindowSize(QSize(500, 400));
     splash.setLogoSize(QSize(120, 120));
     splash.setBorderRadius(24);
+    splash.setBorderColorRgb("#d7d1c8");
+    splash.setBorderWidth(2);
     splash.setAppName("Qt Splash Screen Demo");
     splash.setAppVersion("v1.0.0");
-    splash.setBackgroundColor(QColor("#ffffff"));
+    splash.setCompanyName("Procter");
+    splash.setBackgroundColor(QColor("#f7f5f2"));
 
     // Load custom logo (SVG)
     QString logoPath = QDir::currentPath() + "/resources/icons/app_logo.svg";
@@ -48,6 +51,11 @@ int main(int argc, char *argv[])
     // Load custom stylesheet
     QString stylePath = QDir::currentPath() + "/resources/style/light.qss";
     splash.setStyleSheetPath(stylePath);
+
+    // Company logo placeholder (replace with your SVG)
+    QString companyLogoPath = QDir::currentPath() + "/resources/icons/procter_logo.svg";
+    splash.setCompanyLogoPath(companyLogoPath);
+    splash.setCompanyLogoSize(QSize(110, 30));
 
     // Configure timing
     splash.setMinimumDisplayDuration(3000);  // Minimum 3 seconds visible

@@ -1,42 +1,44 @@
 /*
  * Modern Light Theme Stylesheet for Qt Splash Screen
  * ===================================================
- * Clean, modern design with glassmorphism-inspired elements
+ * Bold, editorial look with warm neutrals + teal accents
  */
 
 /* ============================================
    APPLICATION NAME
    ============================================ */
 #splashAppName {
-    font-family: "Segoe UI Semibold", "SF Pro Display", "Arial", sans-serif;
-    font-size: 26px;
-    font-weight: 600;
-    color: #1a1a2e;
+    font-family: "Gotham", "Avenir Next", "Futura", "Segoe UI Semibold", sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: #0b1320;
     background: transparent;
-    padding: 8px 0px;
-    letter-spacing: 0.5px;
+    padding: 6px 0px 2px 0px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
 }
 
 /* ============================================
    APPLICATION VERSION
    ============================================ */
 #splashAppVersion {
-    font-family: "Segoe UI", "SF Pro Text", "Arial", sans-serif;
-    font-size: 13px;
-    font-weight: 400;
-    color: #64748b;
+    font-family: "Gotham", "Avenir Next", "Futura", "Segoe UI", sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: #5b677a;
     background: transparent;
-    padding: 0px;
-    letter-spacing: 0.3px;
+    padding: 0px 0px 8px 0px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
 }
 
 /* ============================================
    MODERN PROGRESS BAR
    ============================================ */
 #splashProgressBar {
-    background-color: rgba(0, 0, 0, 0.08);
+    background-color: rgba(17, 169, 157, 0.12);
     border: none;
-    border-radius: 6px;
+    border-radius: 7px;
     min-height: 12px;
     max-height: 12px;
 }
@@ -44,25 +46,25 @@
 #splashProgressBar::chunk {
     background: qlineargradient(
         x1: 0, y1: 0, x2: 1, y2: 0,
-        stop: 0.0 #6366f1,
-        stop: 0.3 #8b5cf6,
-        stop: 0.6 #a855f7,
-        stop: 1.0 #6366f1
+        stop: 0.0 #11a99d,
+        stop: 0.4 #1ec3b6,
+        stop: 0.7 #33d4c8,
+        stop: 1.0 #11a99d
     );
-    border-radius: 6px;
+    border-radius: 7px;
 }
 
 /* ============================================
    STATUS MESSAGE LABEL
    ============================================ */
 #splashStatusLabel {
-    font-family: "Segoe UI", "SF Pro Text", "Arial", sans-serif;
+    font-family: "Avenir Next", "Segoe UI", sans-serif;
     font-size: 12px;
     font-weight: 400;
-    color: #475569;
+    color: #5b677a;
     background: transparent;
     padding: 4px 0px;
-    letter-spacing: 0.2px;
+    letter-spacing: 0.6px;
 }
 
 /* ============================================
@@ -73,10 +75,30 @@
     border: none;
 }
 
+#companyContainer {
+    background: transparent;
+    border: none;
+}
+
 /* ============================================
    LOGO WIDGET
    ============================================ */
 #splashLogo {
     background: transparent;
     border: none;
+}
+
+#splashCompanyLogo {
+    background: transparent;
+    border: none;
+}
+
+#splashCompanyName {
+    font-family: "Gotham", "Avenir Next", "Segoe UI Semibold", sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: #0b1320;
+    background: transparent;
+    letter-spacing: 3px;
+    text-transform: uppercase;
 }

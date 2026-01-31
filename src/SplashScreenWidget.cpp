@@ -4,6 +4,8 @@
 #include <QDebug>
 #include <QGraphicsDropShadowEffect>
 #include <QRegion>
+#include <QPixmap>
+#include <QSvgRenderer>
 
 SplashScreenWidget::SplashScreenWidget(QWidget *parent)
     : QWidget(parent)
@@ -11,9 +13,12 @@ SplashScreenWidget::SplashScreenWidget(QWidget *parent)
     , m_logoWidget(nullptr)
     , m_appNameLabel(nullptr)
     , m_appVersionLabel(nullptr)
+    , m_companyNameLabel(nullptr)
+    , m_companyLogoLabel(nullptr)
     , m_progressBar(nullptr)
     , m_statusLabel(nullptr)
     , m_progressContainer(nullptr)
+    , m_companyContainer(nullptr)
     , m_bounceTimer(nullptr)
     , m_progressPosition(0)
     , m_bounceDirection(1)
@@ -22,8 +27,12 @@ SplashScreenWidget::SplashScreenWidget(QWidget *parent)
     , m_currentStep(0)
     , m_progressMode(ProgressMode::Indeterminate)
     , m_logoSize(128, 128)
+    , m_companyLogoSize(90, 26)
+    , m_companyLogoPath()
     , m_windowSize(450, 350)
     , m_borderRadius(20)
+    , m_borderWidth(1)
+    , m_borderColor(0, 0, 0, 20)
     , m_backgroundColor(255, 255, 255)
     , m_minimumDurationElapsed(false)
     , m_finishRequested(false)
@@ -48,8 +57,8 @@ void SplashScreenWidget::setupUi()
 
     // Main layout with adequate margins
     m_mainLayout = new QVBoxLayout(this);
-    m_mainLayout->setContentsMargins(40, 35, 40, 30);
-    m_mainLayout->setSpacing(10);
+    m_mainLayout->setContentsMargins(36, 30, 36, 28);
+    m_mainLayout->setSpacing(8);
 
     // Logo container (centered)
     QWidget *logoContainer = new QWidget(this);
@@ -60,6 +69,11 @@ void SplashScreenWidget::setupUi()
     m_logoWidget = new QSvgWidget(this);
     m_logoWidget->setFixedSize(m_logoSize);
     m_logoWidget->setObjectName("splashLogo");
+    auto *logoShadow = new QGraphicsDropShadowEffect(this);
+    logoShadow->setBlurRadius(18);
+    logoShadow->setOffset(0, 6);
+    logoShadow->setColor(QColor(0, 0, 0, 55));
+    m_logoWidget->setGraphicsEffect(logoShadow);
     logoLayout->addStretch();
     logoLayout->addWidget(m_logoWidget);
     logoLayout->addStretch();
@@ -111,6 +125,36 @@ void SplashScreenWidget::setupUi()
 
     m_mainLayout->addWidget(m_progressContainer);
 
+    m_mainLayout->addStretch(1);
+
+    // Company footer (logo + name)
+    m_companyContainer = new QWidget(this);
+    m_companyContainer->setObjectName("companyContainer");
+    QVBoxLayout *companyLayout = new QVBoxLayout(m_companyContainer);
+    companyLayout->setContentsMargins(0, 0, 0, 0);
+    companyLayout->setSpacing(6);
+
+    m_companyLogoLabel = new QLabel(this);
+    m_companyLogoLabel->setObjectName("splashCompanyLogo");
+    m_companyLogoLabel->setFixedSize(m_companyLogoSize);
+    m_companyLogoLabel->setAlignment(Qt::AlignCenter);
+    m_companyLogoLabel->setScaledContents(false);
+    auto *companyShadow = new QGraphicsDropShadowEffect(this);
+    companyShadow->setBlurRadius(12);
+    companyShadow->setOffset(0, 4);
+    companyShadow->setColor(QColor(0, 0, 0, 45));
+    m_companyLogoLabel->setGraphicsEffect(companyShadow);
+
+    m_companyNameLabel = new QLabel(this);
+    m_companyNameLabel->setObjectName("splashCompanyName");
+    m_companyNameLabel->setText("Company");
+    m_companyNameLabel->setAlignment(Qt::AlignCenter);
+
+    companyLayout->addWidget(m_companyLogoLabel);
+    companyLayout->addWidget(m_companyNameLabel);
+
+    m_mainLayout->addWidget(m_companyContainer);
+
     // Bounce timer for indeterminate progress
     m_bounceTimer = new QTimer(this);
     connect(m_bounceTimer, &QTimer::timeout, this, &SplashScreenWidget::updateBouncingProgress);
@@ -141,9 +185,22 @@ void SplashScreenWidget::paintEvent(QPaintEvent * /* event */)
 
     painter.fillPath(path, gradient);
 
+    // Soft highlight to add depth
+    QLinearGradient highlight(0, 0, 0, height());
+    highlight.setColorAt(0.0, QColor(255, 255, 255, 90));
+    highlight.setColorAt(0.4, QColor(255, 255, 255, 20));
+    highlight.setColorAt(1.0, QColor(255, 255, 255, 0));
+    painter.fillPath(path, highlight);
+
     // Draw subtle border
-    painter.setPen(QPen(QColor(0, 0, 0, 20), 1));
-    painter.drawPath(path);
+    if (m_borderWidth > 0) {
+        const qreal half = m_borderWidth / 2.0;
+        const QRectF borderRect = rect().adjusted(half, half, -half, -half);
+        QPainterPath borderPath;
+        borderPath.addRoundedRect(borderRect, m_borderRadius, m_borderRadius);
+        painter.setPen(QPen(m_borderColor, m_borderWidth));
+        painter.drawPath(borderPath);
+    }
 }
 
 void SplashScreenWidget::applyRoundedMask()
@@ -210,6 +267,39 @@ void SplashScreenWidget::setBorderRadius(int radius)
     update();
 }
 
+void SplashScreenWidget::setBorderColor(const QColor &color)
+{
+    m_borderColor = color;
+    update();
+}
+
+void SplashScreenWidget::setBorderWidth(int width)
+{
+    m_borderWidth = (width < 0) ? 0 : width;
+    update();
+}
+
+void SplashScreenWidget::setBorderColorRgb(const QString &rgbHex)
+{
+    QString hex = rgbHex.trimmed();
+    if (hex.startsWith('#')) {
+        hex.remove(0, 1);
+    }
+
+    if (hex.size() != 6) {
+        qWarning() << "SplashScreen: Border color RGB hex must be 6 digits (RRGGBB):" << rgbHex;
+        return;
+    }
+
+    QColor color(QString('#') + hex);
+    if (!color.isValid()) {
+        qWarning() << "SplashScreen: Invalid RGB hex for border color:" << rgbHex;
+        return;
+    }
+
+    setBorderColor(color);
+}
+
 void SplashScreenWidget::setTotalSteps(int steps)
 {
     m_totalSteps = steps;
@@ -237,6 +327,60 @@ void SplashScreenWidget::setAppName(const QString &name)
 void SplashScreenWidget::setAppVersion(const QString &version)
 {
     m_appVersionLabel->setText(version);
+}
+
+void SplashScreenWidget::setCompanyName(const QString &name)
+{
+    m_companyNameLabel->setText(name);
+}
+
+void SplashScreenWidget::setCompanyLogoPath(const QString &svgPath)
+{
+    m_companyLogoPath = svgPath;
+    updateCompanyLogoPixmap();
+}
+
+void SplashScreenWidget::setCompanyLogoSize(const QSize &size)
+{
+    m_companyLogoSize = size;
+    m_companyLogoLabel->setFixedSize(size);
+    updateCompanyLogoPixmap();
+}
+
+void SplashScreenWidget::updateCompanyLogoPixmap()
+{
+    if (m_companyLogoPath.isEmpty()) {
+        m_companyLogoLabel->clear();
+        return;
+    }
+
+    if (!QFile::exists(m_companyLogoPath)) {
+        qWarning() << "SplashScreen: Company logo file not found:" << m_companyLogoPath;
+        m_companyLogoLabel->clear();
+        return;
+    }
+
+    if (m_companyLogoPath.endsWith(".svg", Qt::CaseInsensitive)) {
+        QSvgRenderer renderer(m_companyLogoPath);
+        if (!renderer.isValid()) {
+            qWarning() << "SplashScreen: Invalid SVG for company logo:" << m_companyLogoPath;
+            m_companyLogoLabel->clear();
+            return;
+        }
+        QPixmap pixmap(m_companyLogoSize);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        renderer.render(&painter);
+        m_companyLogoLabel->setPixmap(pixmap);
+    } else {
+        QPixmap pixmap(m_companyLogoPath);
+        if (pixmap.isNull()) {
+            qWarning() << "SplashScreen: Invalid image for company logo:" << m_companyLogoPath;
+            m_companyLogoLabel->clear();
+            return;
+        }
+        m_companyLogoLabel->setPixmap(pixmap.scaled(m_companyLogoSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    }
 }
 
 void SplashScreenWidget::setProgress(int step)
