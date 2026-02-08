@@ -38,6 +38,9 @@ SplashScreenWidget::SplashScreenWidget(QWidget *parent)
     , m_finishRequested(false)
     , m_isClosed(false)
 {
+    qDebug() << "SplashScreenWidget ctor"
+             << "class:" << metaObject()->className()
+             << "splashFinished index:" << metaObject()->indexOfSignal("splashFinished()");
     setupUi();
 }
 
@@ -506,6 +509,7 @@ void SplashScreenWidget::checkAndClose()
 
         // Small delay to show completion
         QTimer::singleShot(200, this, [this]() {
+            qDebug() << "SplashScreen: emitting splashFinished";
             emit splashFinished();
             close();
         });
