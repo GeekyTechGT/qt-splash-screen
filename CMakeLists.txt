@@ -77,7 +77,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 # Example application (builds but is not deployed/installed)
-add_executable(${PROJECT_NAME}-example WIN32
+#add_executable(${PROJECT_NAME}-example WIN32
+add_executable(${PROJECT_NAME}-example 
     example/main.cpp
     example/MainWindow.cpp
     example/MainWindow.h
